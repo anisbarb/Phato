@@ -1,0 +1,113 @@
+modules = ["nodejs-24"]
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "API Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Relationships"
+
+[[workflows.workflow]]
+name = "API Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+waitForPort = 8080
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Relationships"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=3001 BASE_PATH=/ pnpm --filter @workspace/relationships run dev"
+waitForPort = 3001
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[[ports]]
+localPort = 3000
+externalPort = 8099
+
+[[ports]]
+localPort = 3001
+externalPort = 5000
+
+[[ports]]
+localPort = 3002
+externalPort = 5173
+
+[[ports]]
+localPort = 3003
+externalPort = 6000
+
+[[ports]]
+localPort = 3004
+externalPort = 6800
+
+[[ports]]
+localPort = 3005
+externalPort = 8000
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 8082
+externalPort = 4200
+
+[[ports]]
+localPort = 21738
+externalPort = 3001
+
+[[ports]]
+localPort = 21739
+externalPort = 3000
+
+[[ports]]
+localPort = 25104
+externalPort = 80
+
+[[ports]]
+localPort = 25105
+externalPort = 3002
+
+[[ports]]
+localPort = 25106
+externalPort = 3003

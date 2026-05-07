@@ -1,0 +1,42 @@
+Update the Phato app so it no longer shows the entry/choice screen on startup.
+
+Goal:
+Open directly into the passenger map screen immediately on load, with a clean blueish map-first UI. Remove the whole Phato landing/selection screen that currently shows “I need a ride” and “I’m driving”.
+
+Design requirements:
+- Immediately open PassengerHome / passenger map view as the default first screen.
+- Keep the existing blueish map style, but make it feel more minimal, premium, and ChatGPT-like.
+- Remove the big hero section, large title, and entry cards from the initial experience.
+- The top area should be a compact, elegant toolbar:
+  - a rounded search bar
+  - a hamburger menu icon placed on the RIGHT side of the search bar
+  - both should look modern, soft, and minimal with rounded corners and subtle shadows
+- Use a clean translucent/glass style, similar to ChatGPT’s polished UI feel.
+- Keep the map full-screen and immediately visible behind the top controls.
+- Preserve the current passenger map functionality, route sheet, zoom controls, recenter button, and bottom card logic.
+- The hamburger menu should open a right-side or floating menu/sheet with:
+  - Home
+  - Recent Routes
+  - Saved Places
+  - Notifications
+  - Become a Driver
+  - Settings
+- “Become a Driver” should lead into driver verification flow, not directly into driver mode unless already verified.
+- If the user is verified, show Driver Mode in the menu.
+- Make sure the app feels like a real transport product, not a demo.
+- Keep the UI highly polished, mobile-first, and responsive.
+
+Implementation notes:
+- Remove or bypass the startup landing page route/component entirely.
+- Default route should redirect to passenger map/home.
+- Do not break existing map animations or the controls-bottom logic.
+- Keep everything smooth and production-like.
+- Prefer reusing existing components and styles instead of rebuilding from scratch.
+- Make the menu icon sit on the right side of the search bar, aligned vertically, not floating far away.
+
+The final result should feel like:
+- instant map-first experience
+- minimal premium UI
+- passenger screen opens directly
+- ChatGPT-style simplicity
+- beautiful, modern, and practical

@@ -1,0 +1,1003 @@
+# PHATO — Complete Production Rebuild Prompt
+# For Replit Agent — Paste entire file as one prompt
+
+---
+
+## CONTEXT
+
+Phato is a real informal shared auto-rickshaw coordination app for Hailakandi–Silchar corridor, Northeast India. It is NOT Uber. Drivers are local auto/shared vehicle operators. This is a real product used by real people — no demos, no fake data, no placeholders anywhere.
+
+---
+
+## PART 1 — PROJECT SETUP
+
+### Switch pnpm → npm completely
+
+- Delete `pnpm-lock.yaml`
+- Delete `.npmrc` if pnpm-specific
+- Use only `package.json` with npm scripts
+- Run `npm install` to generate `package-lock.json`
+- All scripts must use `npm run ...`
+- Must deploy on Vercel with zero config changes
+
+### Remove Replit-specific stuff
+
+- Remove any Replit workspace configs, banners, injected toolbars, dev overlays
+- Remove Replit-specific environment assumptions
+- App must work identically on Vercel, Netlify, local machine
+
+### Environment variables (never hardcode)
+
+`.env`:
+```
+VITE_SUPABASE_URL=your_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+```
+
+Add `.env` to `.gitignore`.
+
+---
+
+## PART 2 — FOLDER STRUCTURE
+
+Create every folder below. Every folder must have an `index.ts` file (even if just a comment `// TODO`) so Git tracks it and future imports never break.
+
+```
+src/
+├── pages/
+│   ├── passenger/
+│   │   └── PassengerHome.tsx
+│   ├── driver/
+│   │   └── DriverHome.tsx
+│   └── onboarding/
+│       └── Onboarding.tsx
+│
+├── components/
+│   ├── MapView.tsx
+│   ├── SmoothMarker.tsx
+│   ├── ZoomControl.tsx
+│   ├── Toast.tsx
+│   ├── CorridorLayer.tsx
+│   ├── sidebar/
+│   │   ├── MenuSheet.tsx
+│   │   ├── SidebarHeader.tsx
+│   │   ├── SidebarNav.tsx
+│   │   ├── SidebarFooter.tsx
+│   │   └── SidebarRow.tsx
+│   └── common/
+│       ├── BottomSheet.tsx      ← reusable drag-to-dismiss sheet
+│       ├── ComingSoon.tsx       ← reusable coming soon screen
+│       ├── EmptyState.tsx       ← reusable empty state
+│       └── Spinner.tsx
+│
+├── features/
+│   ├── home-location/
+│   │   └── HomeLocationSheet.tsx
+│   ├── trips/
+│   │   └── TripsSheet.tsx
+│   ├── saved-places/
+│   │   └── SavedPlacesSheet.tsx
+│   ├── notifications/
+│   │   └── NotificationsSheet.tsx
+│   ├── driver-register/
+│   │   └── DriverRegisterSheet.tsx
+│   └── settings/
+│       └── SettingsSheet.tsx
+│
+├── hooks/
+│   ├── useGeolocation.ts
+│   ├── useDriverIdentity.ts
+│   ├── useLocationBroadcast.ts
+│   └── useMapStyle.ts           ← reads localStorage phato_map_style
+│
+├── lib/
+│   ├── supabase.ts
+│   ├── constants.ts
+│   ├── icons.ts
+│   ├── places.ts
+│   ├── matching.ts
+│   ├── osrm.ts
+│   ├── geolocation.ts
+│   └── types.ts
+│
+├── styles/
+│   └── globals.css
+│
+└── main.tsx
+```
+
+---
+
+## PART 3 — BROWSER THEME (White)
+
+In `index.html` `<head>`:
+
+```html
+<meta name="theme-color" content="#ffffff" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+```
+
+Bottom nav bar and all UI chrome must be white. No dark bars. No gray system bars.
+
+---
+
+## PART 4 — DESIGN SYSTEM
+
+```css
+/* src/styles/globals.css */
+:root {
+  --color-brand: #2563eb;
+  --color-brand-dark: #1d4ed8;
+  --color-ink: #0f172a;
+  --color-ink-soft: #475569;
+  --color-ink-mute: #94a3b8;
+  --color-surface: #ffffff;
+  --color-surface-2: #f8fafc;
+  --color-surface-3: #f1f5f9;
+  --color-line: #e2e8f0;
+  --shadow-soft: 0 1px 3px rgba(15,23,42,0.08), 0 1px 2px rgba(15,23,42,0.04);
+  --shadow-brand: 0 4px 14px rgba(37,99,235,0.35);
+  --radius-sheet: 24px;
+  --radius-card: 16px;
+  --radius-pill: 100px;
+}
+```
+
+**Typography:** Use `Geist` or `DM Sans` — NOT Inter, NOT Roboto.
+Add to `index.html`:
+```html
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+```
+
+**Icons:** Lucide React — strokeWidth 2 to 2.5 only. Hard black outlined. Never filled.
+
+---
+
+## PART 5 — REUSABLE BOTTOM SHEET
+
+`src/components/common/BottomSheet.tsx` — used by ALL feature sheets:
+
+```tsx
+import { motion, AnimatePresence } from "framer-motion";
+import { useRef } from "react";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  height?: string; // default "90vh"
+  title?: string;
+}
+
+export default function BottomSheet({ open, onClose, children, height = "90vh", title }: Props) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            className="fixed inset-0 z-[800]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ background: "rgba(15,23,42,0.3)", backdropFilter: "blur(4px)" }}
+            onClick={onClose}
+          />
+          {/* Sheet */}
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-[900] flex flex-col overflow-hidden"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 420, damping: 42, mass: 0.65 }}
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={0.06}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120 || info.velocity.y > 500) onClose();
+            }}
+            style={{
+              height,
+              background: "white",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              boxShadow: "0 -4px 40px rgba(15,23,42,0.12)",
+            }}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-9 h-1 rounded-full bg-slate-200" />
+            </div>
+            {/* Header */}
+            {title && (
+              <div className="px-5 py-3 border-b border-slate-100 shrink-0">
+                <h2 className="text-[17px] font-semibold text-[#0f172a] tracking-[-0.02em]">{title}</h2>
+              </div>
+            )}
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto" style={{ touchAction: "pan-y" }}>
+              {children}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+```
+
+---
+
+## PART 6 — SIDEBAR / MENU SHEET
+
+`src/components/sidebar/MenuSheet.tsx`
+
+The sidebar slides from the RIGHT. Width 300px. Spring animation. Draggable to dismiss rightward.
+
+### Profile photo — FIXED implementation:
+
+```tsx
+// Load persisted image on mount
+const [profileImage, setProfileImage] = useState<string | null>(
+  () => localStorage.getItem("phato_profile_img")
+);
+
+function handleProfileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const base64 = reader.result as string;
+    setProfileImage(base64);
+    localStorage.setItem("phato_profile_img", base64);
+  };
+  reader.readAsDataURL(file);
+  event.target.value = ""; // allow re-selecting same file
+}
+
+// Input — NO capture attribute (capture="environment" breaks gallery on Android)
+<input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*"
+  className="hidden"
+  onChange={handleProfileUpload}
+/>
+```
+
+### Driver/Passenger role switching in sidebar:
+
+The sidebar must read the user's current role from localStorage `phato_user_role` (`"passenger"` or `"driver"`).
+
+```tsx
+const [role, setRole] = useState<"passenger" | "driver">(
+  () => (localStorage.getItem("phato_user_role") as "passenger" | "driver") ?? "passenger"
+);
+```
+
+**If role === "passenger":**
+- Show `"Become a Driver"` → opens `DriverRegisterSheet`
+- Sub: `"Drive with Phato"`
+
+**If role === "driver" (approved):**
+- Show `"Driver Dashboard"` → navigates to `/driver`
+- Sub: `"Currently active"`
+- Show a green badge on the avatar
+
+**If role === "pending":**
+- Show `"Application Pending"` → non-clickable or shows status sheet
+- Sub: `"We'll call you within 24 hours"`
+- Show a yellow badge on the avatar
+
+### Menu items and their behavior:
+
+```tsx
+// All items open bottom sheets (not navigate away from map)
+// except Driver Dashboard which navigates to /driver route
+
+const menuItems = [
+  { icon: House,        label: "Home",           sub: null,                  sheet: "home" },
+  { icon: Clock3,       label: "Trips",          sub: null,                  sheet: "trips" },
+  { icon: Bookmark,     label: "Saved Places",   sub: null,                  sheet: "saved-places" },
+  { icon: Bell,         label: "Notifications",  sub: null,                  sheet: "notifications" },
+];
+
+// Role-dependent item rendered separately below divider
+// Settings always at footer
+```
+
+### Complete MenuSheet structure:
+
+```tsx
+export default function MenuSheet({ open, onClose }: Props) {
+  const [activeSheet, setActiveSheet] = useState<string | null>(null);
+  const [role, setRole] = useState<"passenger" | "driver" | "pending">(
+    () => (localStorage.getItem("phato_user_role") as any) ?? "passenger"
+  );
+
+  // Listen for role changes (after driver approval stored)
+  useEffect(() => {
+    const handler = () => {
+      setRole((localStorage.getItem("phato_user_role") as any) ?? "passenger");
+    };
+    window.addEventListener("phato_role_changed", handler);
+    return () => window.removeEventListener("phato_role_changed", handler);
+  }, []);
+
+  return (
+    <>
+      {/* Sidebar overlay + panel (existing spring animation) */}
+      {/* ... sidebar JSX ... */}
+
+      {/* Feature sheets rendered as portals outside sidebar */}
+      <HomeLocationSheet open={activeSheet === "home"} onClose={() => setActiveSheet(null)} />
+      <TripsSheet open={activeSheet === "trips"} onClose={() => setActiveSheet(null)} />
+      <SavedPlacesSheet open={activeSheet === "saved-places"} onClose={() => setActiveSheet(null)} />
+      <NotificationsSheet open={activeSheet === "notifications"} onClose={() => setActiveSheet(null)} />
+      <DriverRegisterSheet
+        open={activeSheet === "driver-register"}
+        onClose={() => setActiveSheet(null)}
+        onApprovalPending={() => {
+          localStorage.setItem("phato_user_role", "pending");
+          setRole("pending");
+          window.dispatchEvent(new Event("phato_role_changed"));
+        }}
+      />
+      <SettingsSheet open={activeSheet === "settings"} onClose={() => setActiveSheet(null)} />
+    </>
+  );
+}
+```
+
+---
+
+## PART 7 — FEATURE SHEETS
+
+### 7a. Home Location — `src/features/home-location/HomeLocationSheet.tsx`
+
+```tsx
+// Uses BottomSheet wrapper
+// Shows mini Leaflet map (height: 280px, no controls)
+// User taps map → drops pin with house icon
+// "Set as Home" button saves to localStorage
+
+const HOME_KEY = "phato_home_location";
+
+interface HomeLocation { lat: number; lng: number; }
+
+// On passenger map: read phato_home_location and show faint house marker
+// NEVER sent to server — 100% private
+```
+
+UI:
+- Mini map with tap-to-pin
+- House icon marker (Lucide `Home` icon rendered as L.divIcon)
+- "Set as Home" CTA button (brand blue)
+- If already set: show current home with "Edit" option
+
+---
+
+### 7b. Trips — `src/features/trips/TripsSheet.tsx`
+
+```tsx
+// Uses BottomSheet wrapper, title="Your Trips"
+// Shows ComingSoon component
+
+// ComingSoon.tsx:
+export function ComingSoon({ feature }: { feature: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4">
+      <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+        <Clock className="w-8 h-8 text-slate-400" />
+      </div>
+      <div>
+        <p className="text-[17px] font-semibold text-[#0f172a]">{feature}</p>
+        <p className="text-[14px] text-slate-400 mt-1">We're building this. Stay tuned.</p>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### 7c. Saved Places — `src/features/saved-places/SavedPlacesSheet.tsx`
+
+```tsx
+const SAVED_KEY = "phato_saved_places";
+
+interface SavedPlace {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  savedAt: string;
+}
+
+// Load/save from localStorage
+// UI: list of saved place cards + "Add Place" button
+// Add flow: mini map → tap to pin → name input → save
+// Each card: place name + distance from current location
+// Swipe left or long-press → delete option
+// On passenger map: show subtle star markers for saved places
+```
+
+Card design:
+```tsx
+<div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
+  <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+    <Star className="w-4 h-4 text-brand" />
+  </div>
+  <div className="flex-1 min-w-0">
+    <p className="text-[14px] font-medium text-[#0f172a] truncate">{place.name}</p>
+    <p className="text-[12px] text-slate-400">{distanceLabel}</p>
+  </div>
+  <button onClick={() => handleDelete(place.id)}>
+    <Trash2 className="w-4 h-4 text-slate-300" />
+  </button>
+</div>
+```
+
+---
+
+### 7d. Notifications — `src/features/notifications/NotificationsSheet.tsx`
+
+```tsx
+// Uses BottomSheet, title="Notifications"
+// Shows ComingSoon with Bell icon
+// No fake notifications. No dummy data.
+```
+
+---
+
+### 7e. Driver Registration — `src/features/driver-register/DriverRegisterSheet.tsx`
+
+This is the most important feature sheet. Full implementation:
+
+```tsx
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import BottomSheet from "@/components/common/BottomSheet";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  onApprovalPending: () => void;
+}
+
+interface FormData {
+  fullName: string;
+  phone: string;
+  vehicleNumber: string;
+  driverPhoto: string | null;   // base64
+  vehiclePhoto: string | null;  // base64
+}
+
+export default function DriverRegisterSheet({ open, onClose, onApprovalPending }: Props) {
+  const [form, setForm] = useState<FormData>({
+    fullName: "",
+    phone: "",
+    vehicleNumber: "",
+    driverPhoto: null,
+    vehiclePhoto: null,
+  });
+  const [step, setStep] = useState<"form" | "loading" | "success">("form");
+  const [error, setError] = useState<string | null>(null);
+
+  function handlePhotoUpload(field: "driverPhoto" | "vehiclePhoto") {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => setForm((f) => ({ ...f, [field]: reader.result as string }));
+      reader.readAsDataURL(file);
+      e.target.value = "";
+    };
+  }
+
+  async function handleSubmit() {
+    // Validate
+    if (!form.fullName.trim()) return setError("Enter your full name");
+    if (!form.phone.trim() || form.phone.length < 10) return setError("Enter a valid phone number");
+    if (!form.vehicleNumber.trim()) return setError("Enter vehicle number");
+    if (!form.driverPhoto) return setError("Upload your photo");
+    if (!form.vehiclePhoto) return setError("Upload your vehicle photo");
+
+    setError(null);
+    setStep("loading");
+
+    try {
+      const { error: dbError } = await supabase.from("driver_applications").insert({
+        name: form.fullName.trim(),
+        phone: form.phone.trim(),
+        vehicle_number: form.vehicleNumber.trim().toUpperCase(),
+        driver_photo_base64: form.driverPhoto,
+        vehicle_photo_base64: form.vehiclePhoto,
+        submitted_at: new Date().toISOString(),
+        status: "pending",
+        // Anis reviews in Supabase dashboard
+        // Only set status = 'approved' manually to activate driver
+      });
+
+      if (dbError) throw dbError;
+
+      // Mark as pending locally
+      localStorage.setItem("phato_user_role", "pending");
+      localStorage.setItem("phato_driver_application", JSON.stringify({
+        name: form.fullName,
+        phone: form.phone,
+        vehicleNumber: form.vehicleNumber,
+        submittedAt: new Date().toISOString(),
+      }));
+
+      setStep("success");
+      onApprovalPending();
+    } catch (err) {
+      setStep("form");
+      setError("Something went wrong. Please try again.");
+    }
+  }
+
+  // Auto-uppercase vehicle number
+  function handleVehicleNumber(val: string) {
+    setForm((f) => ({ ...f, vehicleNumber: val.toUpperCase() }));
+  }
+
+  return (
+    <BottomSheet open={open} onClose={step === "loading" ? () => {} : onClose} title="Drive with Phato">
+      {step === "loading" && (
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <div className="w-10 h-10 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+          <p className="text-[14px] text-slate-400">Submitting your application...</p>
+        </div>
+      )}
+
+      {step === "success" && (
+        <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center">
+            <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+          </div>
+          <div>
+            <p className="text-[18px] font-semibold text-[#0f172a]">Application Submitted</p>
+            <p className="text-[14px] text-slate-400 mt-2 leading-relaxed">
+              We'll review your details and call you within 24 hours.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full h-12 rounded-2xl bg-brand text-white text-[15px] font-semibold"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {step === "form" && (
+        <div className="px-5 py-4 flex flex-col gap-5 pb-10">
+          {/* Info note */}
+          <div className="rounded-xl bg-blue-50 px-4 py-3">
+            <p className="text-[13px] text-blue-700 leading-relaxed">
+              Phato is not Uber. You stay independent. We just help passengers find you.
+              Drivers are manually approved within 24 hours.
+            </p>
+          </div>
+
+          {/* Full Name */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">Full Name</label>
+            <input
+              className="h-12 rounded-xl border border-slate-200 px-4 text-[15px] text-[#0f172a] bg-white outline-none focus:border-brand transition-colors"
+              placeholder="Your full name"
+              value={form.fullName}
+              onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+            />
+          </div>
+
+          {/* Phone */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">Phone Number</label>
+            <input
+              className="h-12 rounded-xl border border-slate-200 px-4 text-[15px] text-[#0f172a] bg-white outline-none focus:border-brand transition-colors"
+              placeholder="+91 XXXXX XXXXX"
+              type="tel"
+              inputMode="tel"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+          </div>
+
+          {/* Vehicle Number */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">Vehicle Number</label>
+            <input
+              className="h-12 rounded-xl border border-slate-200 px-4 text-[15px] font-mono text-[#0f172a] bg-white outline-none focus:border-brand transition-colors"
+              placeholder="AS01AB1234"
+              value={form.vehicleNumber}
+              onChange={(e) => handleVehicleNumber(e.target.value)}
+            />
+          </div>
+
+          {/* Driver Photo */}
+          <PhotoUploadField
+            label="Your Photo"
+            value={form.driverPhoto}
+            onChange={handlePhotoUpload("driverPhoto")}
+            icon={<User className="w-5 h-5 text-slate-400" />}
+          />
+
+          {/* Vehicle Photo */}
+          <PhotoUploadField
+            label="Vehicle Photo"
+            value={form.vehiclePhoto}
+            onChange={handlePhotoUpload("vehiclePhoto")}
+            icon={<CarFront className="w-5 h-5 text-slate-400" />}
+          />
+
+          {/* Error */}
+          {error && (
+            <p className="text-[13px] text-red-500 text-center">{error}</p>
+          )}
+
+          {/* Submit */}
+          <button
+            onClick={handleSubmit}
+            className="w-full h-12 rounded-2xl bg-brand text-white text-[15px] font-semibold shadow-[var(--shadow-brand)] active:scale-[0.98] transition-transform"
+          >
+            Apply to Drive
+          </button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+// Photo upload sub-component
+function PhotoUploadField({ label, value, onChange, icon }: {
+  label: string;
+  value: string | null;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  icon: React.ReactNode;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">{label}</label>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="h-24 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 active:bg-slate-50 transition-colors overflow-hidden"
+      >
+        {value ? (
+          <img src={value} alt={label} className="w-full h-full object-cover" />
+        ) : (
+          <>
+            {icon}
+            <span className="text-[13px] text-slate-400">Tap to upload</span>
+          </>
+        )}
+      </button>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
+    </div>
+  );
+}
+```
+
+**Supabase table `driver_applications`:**
+```sql
+create table driver_applications (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  phone text not null,
+  vehicle_number text not null,
+  driver_photo_base64 text,
+  vehicle_photo_base64 text,
+  submitted_at timestamptz default now(),
+  status text default 'pending'  -- 'pending' | 'approved' | 'rejected'
+);
+```
+
+**Important comment in code:**
+```
+// Anis reviews all applications in Supabase dashboard
+// To approve: set status = 'approved' manually
+// Driver cannot access /driver route until approved
+// Future: webhook or realtime subscription to notify driver of approval
+```
+
+---
+
+### 7f. Settings — `src/features/settings/SettingsSheet.tsx`
+
+```tsx
+const MAP_STYLE_KEY = "phato_map_style";
+const POLYLINE_STYLE_KEY = "phato_polyline_style";
+
+const MAP_STYLES = [
+  {
+    id: "standard",
+    label: "Standard",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    preview: "🗺️",
+  },
+  {
+    id: "satellite",
+    label: "Satellite",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    preview: "🛰️",
+  },
+  {
+    id: "dark",
+    label: "Dark",
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    preview: "🌙",
+  },
+  {
+    id: "terrain",
+    label: "Terrain",
+    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    preview: "⛰️",
+  },
+];
+
+const POLYLINE_STYLES = [
+  { id: "apple",   label: "Apple",   desc: "Clean blue, 5px" },
+  { id: "uber",    label: "Uber",    desc: "Dark bold, 6px" },
+  { id: "glow",    label: "Glow",    desc: "Neon blue with blur" },
+  { id: "minimal", label: "Minimal", desc: "Thin 2px gray" },
+];
+
+// Persist selections
+// Map component reads phato_map_style on load and switches tile layer
+// Route polyline reads phato_polyline_style and applies correct pathOptions
+
+export default function SettingsSheet({ open, onClose }: Props) {
+  const [mapStyle, setMapStyle] = useState(() => localStorage.getItem(MAP_STYLE_KEY) ?? "standard");
+  const [polylineStyle, setPolylineStyle] = useState(() => localStorage.getItem(POLYLINE_STYLE_KEY) ?? "apple");
+
+  function selectMapStyle(id: string) {
+    setMapStyle(id);
+    localStorage.setItem(MAP_STYLE_KEY, id);
+    window.dispatchEvent(new CustomEvent("phato_map_style_changed", { detail: id }));
+  }
+
+  function selectPolylineStyle(id: string) {
+    setPolylineStyle(id);
+    localStorage.setItem(POLYLINE_STYLE_KEY, id);
+  }
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Settings">
+      <div className="px-5 py-4 flex flex-col gap-6 pb-10">
+
+        {/* Map Style */}
+        <div>
+          <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wide mb-3">Map Style</p>
+          <div className="grid grid-cols-2 gap-2">
+            {MAP_STYLES.map((style) => (
+              <button
+                key={style.id}
+                onClick={() => selectMapStyle(style.id)}
+                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                  mapStyle === style.id
+                    ? "border-brand bg-brand/5"
+                    : "border-slate-100 bg-white"
+                }`}
+              >
+                <span className="text-2xl">{style.preview}</span>
+                <span className={`text-[13px] font-medium ${mapStyle === style.id ? "text-brand" : "text-[#0f172a]"}`}>
+                  {style.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Polyline Style */}
+        <div>
+          <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wide mb-3">Route Style</p>
+          <div className="flex flex-col gap-2">
+            {POLYLINE_STYLES.map((style) => (
+              <button
+                key={style.id}
+                onClick={() => selectPolylineStyle(style.id)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all ${
+                  polylineStyle === style.id
+                    ? "border-brand bg-brand/5"
+                    : "border-slate-100 bg-white"
+                }`}
+              >
+                {/* Preview swatch */}
+                <div className="w-12 h-4 flex items-center">
+                  <PolylineSwatch styleId={style.id} />
+                </div>
+                <div className="text-left">
+                  <p className={`text-[14px] font-medium ${polylineStyle === style.id ? "text-brand" : "text-[#0f172a]"}`}>
+                    {style.label}
+                  </p>
+                  <p className="text-[11px] text-slate-400">{style.desc}</p>
+                </div>
+                {polylineStyle === style.id && (
+                  <Check className="w-4 h-4 text-brand ml-auto" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </BottomSheet>
+  );
+}
+
+// SVG swatch preview for each polyline style
+function PolylineSwatch({ styleId }: { styleId: string }) {
+  const props: React.SVGProps<SVGLineElement> = {
+    x1: 0, y1: 8, x2: 48, y2: 8,
+  };
+  if (styleId === "apple")   return <svg width={48} height={16}><line {...props} stroke="#2563eb" strokeWidth={4} strokeLinecap="round" /></svg>;
+  if (styleId === "uber")    return <svg width={48} height={16}><line {...props} stroke="#0f172a" strokeWidth={6} strokeLinecap="round" /></svg>;
+  if (styleId === "glow")    return <svg width={48} height={16}><line {...props} stroke="#60a5fa" strokeWidth={4} strokeLinecap="round" style={{ filter: "drop-shadow(0 0 3px #3b82f6)" }} /></svg>;
+  if (styleId === "minimal") return <svg width={48} height={16}><line {...props} stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" /></svg>;
+  return null;
+}
+```
+
+**Map reads polyline style:**
+```tsx
+// In DriverHome.tsx and PassengerHome.tsx:
+const polylineStyle = localStorage.getItem("phato_polyline_style") ?? "apple";
+
+const polylineOptions = {
+  apple:   { color: "#2563eb", weight: 5, opacity: 0.9 },
+  uber:    { color: "#0f172a", weight: 6, opacity: 0.95 },
+  glow:    { color: "#60a5fa", weight: 5, opacity: 1, className: "polyline-glow" },
+  minimal: { color: "#94a3b8", weight: 2, opacity: 0.8 },
+}[polylineStyle] ?? { color: "#2563eb", weight: 5, opacity: 0.9 };
+```
+
+---
+
+## PART 8 — DRIVER HOME (reference existing code, clean it up)
+
+Keep all logic from the existing `DriverHome.tsx` exactly as-is:
+- `useGeolocation`, `useDriverIdentity`, `useLocationBroadcast`
+- `useIncomingPickups`, `useDriverNotifications`, `useChat`
+- `useSimulatedPassengers`, `useSimulatedVehicles`, `useCorridorPulse`
+- All WebSocket logic
+- `PickupNotification`, `ChatTray`, `PingSheet`, `SeatCounter`
+- Route fetching via OSRM
+- Multi-route choice UI
+
+**Changes to make:**
+1. Apply polyline style from settings (see Part 7f)
+2. Apply map tile layer from settings (see Part 7f)
+3. Add `MenuSheet` to DriverHome (same as PassengerHome) — driver sees same sidebar but with "Driver Dashboard" instead of "Become a Driver"
+4. Remove any simulated/fake passenger data references for production — keep hooks but they return empty in production mode
+5. Remove `console.log` everywhere
+6. Wrap heavy sub-components in `React.memo`
+7. Add `useCallback` on all event handlers that are passed as props
+
+---
+
+## PART 9 — PASSENGER HOME
+
+Keep all existing logic. Same cleanup as Driver Home:
+1. Add map tile switching from settings
+2. Add polyline style from settings
+3. Show house marker at `phato_home_location` (faint, non-interactive)
+4. Show star markers at `phato_saved_places` (faint, non-interactive)
+5. Same sidebar with passenger role items
+
+---
+
+## PART 10 — ROUTE PROTECTION
+
+```tsx
+// src/lib/auth.ts
+export function getUserRole(): "passenger" | "driver" | "pending" {
+  return (localStorage.getItem("phato_user_role") as any) ?? "passenger";
+}
+
+// In router / App.tsx:
+// /driver route → only accessible if role === "driver"
+// Otherwise redirect to /passenger with a toast: "Your application is under review"
+```
+
+---
+
+## PART 11 — SUPABASE CLIENT
+
+`src/lib/supabase.ts`:
+```ts
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Missing Supabase environment variables");
+}
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+```
+
+---
+
+## PART 12 — PERFORMANCE RULES
+
+Apply to every component:
+
+```tsx
+// ✅ Memoize all map markers
+const DriverMarker = React.memo(({ position, icon }) => (
+  <SmoothMarker position={position} icon={icon} />
+));
+
+// ✅ useCallback on all handlers passed as props
+const handleMapTap = useCallback(() => { ... }, [deps]);
+
+// ✅ useMemo on expensive calculations
+const matches = useMemo(() => matchPassengers(...), [position, destination, allRequests]);
+
+// ✅ Lazy load heavy pages
+const DriverHome = React.lazy(() => import("@/pages/driver/DriverHome"));
+const PassengerHome = React.lazy(() => import("@/pages/passenger/PassengerHome"));
+
+// ✅ GPU hints only on animated elements
+style={{ willChange: "transform", transform: "translateZ(0)" }}
+
+// ✅ No console.log in any file
+// ✅ No unnecessary useEffect dependencies
+// ✅ TouchAction properly set to prevent scroll conflicts
+```
+
+---
+
+## PART 13 — REMOVE ALL DEMO / FAKE DATA
+
+Search entire codebase and remove:
+- Any hardcoded driver names or locations
+- Any mock passenger arrays
+- Any fake trip histories
+- Any placeholder statistics or counts
+- Any demo cards or example routes
+- Any `Math.random()` used for UI display (keep for IDs only)
+
+Empty states must be clean and honest — show nothing rather than fake something.
+
+---
+
+## PART 14 — FINAL CHECKLIST FOR REPLIT AGENT
+
+- [ ] pnpm fully removed, npm works with `npm install && npm run dev`
+- [ ] Replit injections removed
+- [ ] White browser theme-color meta tag
+- [ ] Full folder structure with index.ts stubs
+- [ ] BottomSheet reusable component
+- [ ] MenuSheet with role-based switching (passenger / pending / driver)
+- [ ] Profile photo upload fixed (no capture attr, FileReader + localStorage)
+- [ ] HomeLocationSheet — private localStorage only
+- [ ] TripsSheet — coming soon
+- [ ] SavedPlacesSheet — pin + name + list
+- [ ] NotificationsSheet — coming soon
+- [ ] DriverRegisterSheet — full form → Supabase driver_applications table
+- [ ] Role switches to "pending" after form submit
+- [ ] SettingsSheet — 4 map styles + 4 polyline styles
+- [ ] Map reads phato_map_style on load
+- [ ] Polylines read phato_polyline_style
+- [ ] DriverHome: existing logic preserved + sidebar added + settings applied
+- [ ] PassengerHome: home pin + saved places pins shown on map
+- [ ] /driver route protected — redirects pending/passenger users
+- [ ] Supabase client uses env vars only
+- [ ] React.memo on all map markers
+- [ ] useCallback on all prop-passed handlers
+- [ ] useMemo on matchPassengers and polylinePoints
+- [ ] React.lazy on DriverHome and PassengerHome
+- [ ] All console.log removed
+- [ ] All demo/fake data removed
+- [ ] Empty states are clean, no fake content
+- [ ] DM Sans font loaded
+- [ ] Design tokens in globals.css
+- [ ] .env in .gitignore

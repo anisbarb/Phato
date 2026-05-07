@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/ride/"
+title = "Phato Ride-Share"
+version = "1.0.0"
+id = "artifacts/ride"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/ride/" ]
+localPort = 21738
+
+[services.development]
+run = "npm run dev"
+
+[services.production]
+build = [ "npm", "run", "build" ]
+publicDir = "dist"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21738"
+BASE_PATH = "/ride/"

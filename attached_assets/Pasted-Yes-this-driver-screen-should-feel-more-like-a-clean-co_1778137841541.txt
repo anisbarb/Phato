@@ -1,0 +1,134 @@
+Yes — this driver screen should feel more like a clean control panel, not a passenger app.
+
+What I would change:
+
+1) Move the hamburger to the top-right That is the right move. Keep the left side for only route/search/context. Right side is better for menu and driver actions.
+
+2) Make the screen driver-first Remove anything that feels passenger-oriented. No “ride” language, no payment/money vibe. Use:
+
+Route
+
+Corridor
+
+Availability
+
+Pickup
+
+Requests
+
+Active trips
+
+Vehicle status
+
+
+3) Make the UI more black/white Use:
+
+white background
+
+black text
+
+soft gray borders
+
+one accent color only, like blue or green
+
+
+That will make it feel more Apple-like and premium.
+
+4) Reduce the big bottom CTA The huge blue button is strong, but it takes too much attention. Make it:
+
+smaller,
+
+thinner,
+
+more aligned with the map style,
+
+maybe a floating action bar instead of a giant block.
+
+
+5) Keep more map visible The map is the main product. The bottom card should be slimmer so the route and live corridor are more visible.
+
+6) Replace “passenger-style” cards with driver controls For drivers, the menu should show:
+
+Driver Dashboard
+
+Live Corridor
+
+Passenger Requests
+
+My Vehicle
+
+Availability Toggle
+
+Saved Routes
+
+Notifications
+
+Settings
+
+
+7) Make the top bar simpler Top bar should have only:
+
+location / corridor name
+
+hamburger on the right
+
+maybe one small status chip like “Active” or “Online”
+
+
+8) Use one clean layout style everywhere Right now the screens are good, but they should all follow the same system:
+
+same corner radius
+
+same spacing
+
+same button style
+
+same shadow strength
+
+same icon style
+
+
+9) Make transitions faster Use faster slide and fade:
+
+panels from right
+
+sheets only for map actions
+
+no heavy vertical opening
+
+no white blank flash
+
+
+10) Driver mode should feel like “working mode” So the screen should focus on:
+
+where am I
+
+who is nearby
+
+which direction is active
+
+what route is live
+
+what action do I need now
+
+
+Not on trips history or app fluff.
+
+Best visual direction:
+
+monochrome base
+
+blue accent
+
+rounded cards
+
+less height
+
+more map
+
+fewer words
+
+faster actions
+
+
+The biggest upgrade I would do first: move the hamburger to the right, simplify the top bar, and make the driver screen a compact live dashboard.
